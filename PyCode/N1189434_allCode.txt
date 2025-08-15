@@ -1,0 +1,1958 @@
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
+from scipy.stats import norm
+
+originalDF = pd.read_csv("../../2024SODeveloperSurvey/survey_results_public.csv")
+
+# Determine the median value, and total amount of people greater than median
+CompDF = originalDF.copy()
+medianComp = CompDF['ConvertedCompYearly'].median()
+CompDF['ConvertedCompYearly'].fillna(0, inplace=True)
+countOverMedian = CompDF[CompDF['ConvertedCompYearly'] > medianComp]['ConvertedCompYearly'].count()
+
+print(f'{medianComp} count {countOverMedian}')
+print("min and max:\n", CompDF['ConvertedCompYearly'].sort_values())
+
+
+# Determine quantile values above/below which outliers are removed
+ccy = originalDF['ConvertedCompYearly'].copy()
+ccy = ccy.dropna()
+
+quantiles = ccy.quantile([0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975])
+print(quantiles)
+
+# new series to use suitable values
+quantileCCY = ccy[ccy.between(quantiles[0.025], quantiles[0.975])]
+
+# Save the updated csv
+updatedDF = originalDF.copy()
+updatedDF['ConvertedCompYearly'] = quantileCCY
+updatedDF = updatedDF.dropna(subset=['ConvertedCompYearly'])
+print(f"Remaining are {updatedDF['ConvertedCompYearly'].count()} valid responses")
+updatedDF.to_csv("../../2024SODeveloperSurvey/CompCleanedResultsSet.csv")
+
+# plot the before and after of the cleaning process
+fig, (plotA, plotB) = plt.subplots(1, 2)
+plotA.boxplot(ccy, labels=['ORIGINAL'])
+plotB.boxplot(quantileCCY, labels=['CLEANED'], whis=[0, 100])
+fig.suptitle("Converted Comp Yearly: Before and After Cleaning")
+plt.show()
+
+# Determine if the median or count has changed post cleaning
+newMedian = quantileCCY.median()
+newCountOverMedian = quantileCCY[quantileCCY > medianComp].count()
+print(f"{newMedian} count {newCountOverMedian}")
+
+# store the values
+# quantileCCY.to_csv("../2024SODeveloperSurvey/cleanedAnnualCompensation.csv")
+
+# Create Normal Distribution of data with histogram
+mu, std = norm.fit(quantileCCY)
+print(mu, std)
+plt.hist(quantileCCY, bins=10, density=True)
+
+x = np.linspace(quantileCCY.min(), quantileCCY.max(), 100)
+p = norm.pdf(x, mu, std)
+plt.plot(x, p)
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
+from scipy.stats import norm
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', None)
+pd.set_option('display.max_rows', None)
+
+originalDF = pd.read_csv("../../2024SODeveloperSurvey/survey_results_public.csv")
+
+# Amount of null fields to clean
+nullsponses = originalDF.isnull().sum()
+print(f"{nullsponses.sum()} total NA Values")
+
+x = (nullsponses / 65447) * 100
+print(x)
+
+
+cleanedDF = pd.read_csv("../../ModifiedData/CompCleanedResultsSet.csv")
+cleanedNullsponses = cleanedDF.isnull().sum()
+print(f"{cleanedNullsponses.sum()} total NA Values")
+print(f"{len(cleanedDF.columns)} columns")
+
+x = (cleanedNullsponses / 65447) * 100
+print(x)
+
+print(f"total reduction = {(cleanedNullsponses.sum() / nullsponses.sum()) * 100}%")
+print(f"mean NA values {x.mean()}")
+
+
+cleanedAndReducedDF = pd.read_csv("../../ModifiedData/DataCleaning/SelectFieldsSet.csv")
+cleanedReducedNullsponses = cleanedAndReducedDF.isnull().sum()
+print(f"{cleanedReducedNullsponses.sum()} total NA Values")
+print(f"{len(cleanedAndReducedDF.columns)} columns")
+
+nullColumnsDict = {}
+for col in cleanedAndReducedDF.columns:
+    naCount = cleanedAndReducedDF[col].isnull().sum()
+    if naCount == 0: continue
+    nullColumnsDict[col]=naCount
+
+
+import textwrap
+def wrap_labels(ax, width, break_long_words=False):
+    labels = []
+    for label in ax.get_xticklabels():
+        text = label.get_text()
+        labels.append(textwrap.fill(text, width=width,
+                      break_long_words=break_long_words))
+    ax.set_xticklabels(labels, rotation=90)
+
+
+import seaborn as sns
+sns.set_theme(style='darkgrid', font_scale=0.7)
+
+fig, ax = plt.subplots()
+ax.bar(range(len(nullColumnsDict)), list(nullColumnsDict.values()), align='center')
+ax.set_xticks(np.arange(len(nullColumnsDict.keys())))
+ax.set_xticklabels(list(nullColumnsDict.keys()))
+wrap_labels(ax, 12, True)
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
+from scipy.stats import norm
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', None)
+pd.set_option('display.max_colwidth', 20)
+
+df = pd.read_csv("../../2024SODeveloperSurvey/survey_results_public.csv")
+
+languagesDF = pd.DataFrame()
+languagesDF["LanguageHaveWorkedWith"] = df["LanguageHaveWorkedWith"]
+languagesDF["LanguageWantToWorkWith"] = df["LanguageWantToWorkWith"]
+languagesDF["LanguageAdmired"] = df["LanguageAdmired"]
+
+# drop null responses
+languagesDF = languagesDF[languagesDF.isnull().sum(axis=1) < 3]
+languagesDF.fillna(0)
+
+# create dictionary from languages
+# first get list of all languages
+langList = []
+for record in languagesDF.iterrows():
+    for idx in range(2):
+        hwwStr = str(record[1].iloc[idx])
+        if hwwStr == "0":
+            continue
+
+        langs = hwwStr.split(';')
+        for lang in langs:
+            if lang in langList:
+                continue
+            else:
+                langList.append(lang)
+
+# then compose into a dict
+langDict = {lang:(x+1) for x, lang in enumerate(langList)}
+print(langDict)
+
+# now create a new df using int vars
+numericalDF = languagesDF.copy()
+for idx in numericalDF.count():
+    hwwStr = str(numericalDF.iloc[0].iloc[0])
+
+    langs = hwwStr.split(';')
+    for lang in langs:
+        if lang in langList:
+            continue
+        else:
+            langList.append(lang)
+
+    break
+print(numericalDF)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
+from scipy.stats import norm
+
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+cleanOriginalDF = pd.read_csv("../../ModifiedData/CompCleanedResultsSet.csv")
+
+# All Data Columns
+# 'ResponseId', 'MainBranch', 'Age', 'Employment', 'RemoteWork', 'Check', 'CodingActivities', 'EdLevel', 'LearnCode',
+# 'LearnCodeOnline', 'TechDoc', 'YearsCode', 'YearsCodePro', 'DevType', 'OrgSize', 'PurchaseInfluence', 'BuyNewTool',
+# 'BuildvsBuy', 'TechEndorse', 'Country', 'Currency', 'CompTotal', 'LanguageHaveWorkedWith', 'LanguageWantToWorkWith',
+# 'LanguageAdmired', 'DatabaseHaveWorkedWith', 'DatabaseWantToWorkWith', 'DatabaseAdmired', 'PlatformHaveWorkedWith',
+# 'PlatformWantToWorkWith', 'PlatformAdmired', 'WebframeHaveWorkedWith', 'WebframeWantToWorkWith', 'WebframeAdmired',
+# 'EmbeddedHaveWorkedWith', 'EmbeddedWantToWorkWith', 'EmbeddedAdmired', 'MiscTechHaveWorkedWith', 'MiscTechWantToWorkWith',
+# 'MiscTechAdmired', 'ToolsTechHaveWorkedWith', 'ToolsTechWantToWorkWith', 'ToolsTechAdmired', 'NEWCollabToolsHaveWorkedWith',
+# 'NEWCollabToolsWantToWorkWith', 'NEWCollabToolsAdmired', 'OpSysPersonal use', 'OpSysProfessional use',
+# 'OfficeStackAsyncHaveWorkedWith', 'OfficeStackAsyncWantToWorkWith', 'OfficeStackAsyncAdmired', 'OfficeStackSyncHaveWorkedWith',
+# 'OfficeStackSyncWantToWorkWith', 'OfficeStackSyncAdmired', 'AISearchDevHaveWorkedWith', 'AISearchDevWantToWorkWith',
+# 'AISearchDevAdmired', 'NEWSOSites', 'SOVisitFreq', 'SOAccount', 'SOPartFreq', 'SOHow', 'SOComm', 'AISelect', 'AISent',
+# 'AIBen', 'AIAcc', 'AIComplex', 'AIToolCurrently Using', 'AIToolInterested in Using', 'AIToolNot interested in Using',
+# 'AINextMuch more integrated', 'AINextNo change', 'AINextMore integrated', 'AINextLess integrated', 'AINextMuch less integrated',
+# 'AIThreat', 'AIEthics', 'AIChallenges', 'TBranch', 'ICorPM', 'WorkExp', 'Knowledge_1', 'Knowledge_2', 'Knowledge_3',
+# 'Knowledge_4', 'Knowledge_5', 'Knowledge_6', 'Knowledge_7', 'Knowledge_8', 'Knowledge_9', 'Frequency_1', 'Frequency_2',
+# 'Frequency_3', 'TimeSearching', 'TimeAnswering', 'Frustration', 'ProfessionalTech', 'ProfessionalCloud', 'ProfessionalQuestion',
+# 'Industry', 'JobSatPoints_1', 'JobSatPoints_4', 'JobSatPoints_5', 'JobSatPoints_6', 'JobSatPoints_7', 'JobSatPoints_8',
+# 'JobSatPoints_9', 'JobSatPoints_10', 'JobSatPoints_11', 'SurveyLength', 'SurveyEase', 'ConvertedCompYearly', 'JobSat'
+
+
+# Specify Headers to retain
+retainHeaders = ['ResponseID', 'MainBranch', 'Age', 'Employment', 'RemoteWork', 'CodingActivities', 'EdLevel',
+                 'LearnCode', 'LearnCodeOnline', 'TechDoc',
+
+                 'YearsCode', 'YearsCodePro', 'DevType', 'OrgSize', 'PurchaseInfluence',
+                 'Country', 'Currency', 'ConvertedCompYearly',
+
+                 'LanguageHaveWorkedWith',
+                 'DatabaseHaveWorkedWith',
+                 'PlatformHaveWorkedWith',
+                 'WebframeHaveWorkedWith',
+                 'EmbeddedHaveWorkedWith',
+                 'MiscTechHaveWorkedWith',
+                 'ToolsTechHaveWorkedWith',
+                 'NEWCollabToolsHaveWorkedWith',
+                 'OpSysPersonal use', 'OpSysProfessional use',
+                 'OfficeStackAsyncHaveWorkedWith',
+                 'OfficeStackSyncHaveWorkedWith',
+                 'AISearchDevHaveWorkedWith',
+
+                 'SOVisitFreq', 'SOPartFreq', 'SOHow',
+
+                 'AISelect', 'AISent', 'AIThreat',
+
+                 'ICorPM', 'WorkExp', 'TimeSearching', 'TimeHelping', 'ProfessionalTech', 'Industry']
+
+# Produce Dictionary conversions from Original Header to New Header
+headerDict = {
+    'TechDoc':'TechnicalDocumentationUsage',
+    'WorkExp':'YearsWorkExperience',
+    'NEWCollabToolsHaveWorkedWith':'DevelopmentEnvironments',
+    'OpSysPersonal use': 'PersonalOperatingSystem',
+    'OpSysProfessional use': 'WorkOperatingSystem',
+    'OfficeStackAsyncHaveWorkedWith':'ManagementTools',
+    'OfficeStackSyncHaveWorkedWith': 'CommunicationTools',
+    'LanguageHaveWorkedWith':'RecentLanguages',
+    'DatabaseHaveWorkedWith':'RecentDatabases',
+    'PlatformHaveWorkedWith':'RecentCloudPlatforms',
+    'WebframeHaveWorkedWith':'RecentWebTech',
+    'EmbeddedHaveWorkedWith':'RecentEmbeddedSystems',
+    'MiscTechHaveWorkedWith':'RecentOtherFrameworks',
+    'ToolsTechHaveWorkedWith':'RecentDevelopmentTools',
+    'AISearchDevHaveWorkedWith':'RecentAITools',
+
+    'SOVisitFreq':'FrequencyOfVisitingSO',
+    'SOPartFreq':'FrequencyOfParticipatingSO',
+    'SOHow':'HowDoYouUseSO',
+
+    'AISelect':'AITools',
+    'AISent':'StanceOnAITools',
+    'AIThreat':'DoesAIThreatenYourJob',
+
+    'ICorPM':'IndividualOrManager',
+    'CompanyTech':'ProfessionalTech'
+}
+
+# Now compile multi-headers into single header of key info
+# and apply new Headers
+condensedDF = cleanOriginalDF[cleanOriginalDF.columns.intersection(retainHeaders)]
+condensedDF = condensedDF.rename(columns=headerDict)
+# print(condensedDF)
+
+# store updated database
+condensedDF.to_csv("../../ModifiedData/SelectFieldsSetWithNull.csv")
+
+dictDF = pd.DataFrame.from_dict({"Original Header":headerDict.keys(),"New Header":headerDict.values()})
+# print(dictDF)
+
+# Now remove null values for None in suitable fields
+filledDF = condensedDF.copy()
+filledDF["LearnCodeOnline"].fillna("None", inplace=True)
+filledDF["TechnicalDocumentationUsage"].fillna("None", inplace=True)
+
+filledDF["RecentLanguages"].fillna("None", inplace=True)
+filledDF["RecentDatabases"].fillna("None", inplace=True)
+filledDF["RecentCloudPlatforms"].fillna("None", inplace=True)
+filledDF["RecentWebTech"].fillna("None", inplace=True)
+filledDF["RecentEmbeddedSystems"].fillna("None", inplace=True)
+filledDF["RecentOtherFrameworks"].fillna("None", inplace=True)
+filledDF["RecentDevelopmentTools"].fillna("None", inplace=True)
+filledDF["RecentAITools"].fillna("None", inplace=True)
+
+filledDF["DevelopmentEnvironments"].fillna("None", inplace=True)
+filledDF["PersonalOperatingSystem"].fillna("None", inplace=True)
+filledDF["ManagementTools"].fillna("None", inplace=True)
+filledDF["WorkOperatingSystem"].fillna("None", inplace=True)
+
+filledDF["DevelopmentEnvironments"].fillna("None", inplace=True)
+filledDF["PersonalOperatingSystem"].fillna("None", inplace=True)
+
+filledDF.to_csv("../../ModifiedData/SelectFieldsSetWithSomeNull.csv")
+
+# plot updated null counts
+
+nullColumnsDict = {}
+for col in filledDF.columns:
+    naCount = filledDF[col].isnull().sum()
+    if naCount == 0: continue
+    nullColumnsDict[col]=naCount
+
+
+import textwrap
+def wrap_labels(ax, width, break_long_words=False):
+    labels = []
+    for label in ax.get_xticklabels():
+        text = label.get_text()
+        labels.append(textwrap.fill(text, width=width,
+                      break_long_words=break_long_words))
+    ax.set_xticklabels(labels, rotation=90)
+
+
+import seaborn as sns
+sns.set_theme(style='darkgrid', font_scale=0.7)
+
+fig, ax = plt.subplots()
+ax.bar(range(len(nullColumnsDict)), list(nullColumnsDict.values()), align='center')
+ax.set_xticks(np.arange(len(nullColumnsDict.keys())))
+ax.set_xticklabels(list(nullColumnsDict.keys()))
+wrap_labels(ax, 12, True)
+plt.show()
+
+
+
+
+# For the remaining columns, fill na values with the mode response
+for col in filledDF.columns:
+    filledDF[col] = filledDF[col].fillna(filledDF[col].mode(dropna=True)[0])
+
+
+# Drop non-developers and then the MainBranch column
+counts = filledDF["MainBranch"].value_counts()
+print(counts)
+filledDF = filledDF.drop(filledDF[filledDF["MainBranch"] != "I am a developer by profession"].index)
+filledDF = filledDF.drop(columns=["MainBranch"])
+
+# Store updated Database
+filledDF.to_csv("../../ModifiedData/SelectFieldsSet.csv")
+
+
+# plot updated null counts
+
+nullColumnsDict = {}
+for col in filledDF.columns:
+    naCount = filledDF[col].isnull().sum()
+    if naCount == 0: continue
+    nullColumnsDict[col]=naCount
+
+
+import textwrap
+def wrap_labels(ax, width, break_long_words=False):
+    labels = []
+    for label in ax.get_xticklabels():
+        text = label.get_text()
+        labels.append(textwrap.fill(text, width=width,
+                      break_long_words=break_long_words))
+    ax.set_xticklabels(labels, rotation=90)
+
+
+import seaborn as sns
+sns.set_theme(style='darkgrid', font_scale=0.7)
+
+# fig, ax = plt.subplots()
+# ax.bar(range(len(nullColumnsDict)), list(nullColumnsDict.values()), align='center')
+# ax.set_xticks(np.arange(len(nullColumnsDict.keys())))
+# ax.set_xticklabels(list(nullColumnsDict.keys()))
+# wrap_labels(ax, 12, True)
+# plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+cleanedCompData = pd.read_csv("../../ModifiedData/DataCleaning/SelectFieldsSet.csv")
+print(cleanedCompData.count())
+
+# Produce Summary of ages of respondents
+ageCounts = cleanedCompData['Age'].copy().groupby(cleanedCompData['Age']).count()
+print(ageCounts.index)
+
+plt.bar(x=ageCounts.index, height=ageCounts.values)
+plt.xticks(rotation=45)
+for i in range(len(ageCounts.index)):
+    plt.text(i, ageCounts.values[i], ageCounts.values[i], ha='center')
+plt.show()
+
+
+# Compare against cleaned wages
+datacpy = cleanedCompData.copy()
+medians = datacpy['ConvertedCompYearly'].groupby(cleanedCompData['Age']).median()
+
+print([medians.index[i] for i in [7, 0, 1, 2, 3, 4, 5, 6]])
+medians = medians.reindex(index=[medians.index[i] for i in [7, 0, 1, 2, 3, 4, 5, 6]])
+
+plt.plot(medians)
+plt.ylabel("Annual Compensation")
+plt.xticks(rotation=45)
+plt.show()
+
+
+# Get grouped counts of above/below median
+datacpy = cleanedCompData.copy()
+datacpy["IsHighIncome"] = datacpy["ConvertedCompYearly"] > 65000
+groupedHighIncome = datacpy.groupby("Age")["IsHighIncome"].sum()
+groupedLowIncome = datacpy.groupby("Age")["IsHighIncome"].count() - groupedHighIncome
+print(groupedHighIncome, groupedLowIncome)
+
+
+# display as stacked bar chart
+fig, ax = plt.subplots()
+
+for group in groupedLowIncome.index:
+    ax.bar(group, groupedLowIncome[group], label=("Below Median" if group==groupedLowIncome.index[0] else ""), bottom=0, color="b")
+
+for group in groupedHighIncome.index:
+    ax.bar(group, groupedHighIncome[group], label=("Above Median" if group==groupedHighIncome.index[0] else ""), bottom=groupedLowIncome[group], color='c')
+
+ax.legend(loc="upper right")
+plt.xticks(rotation=45)
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("../../ModifiedData/DataCleaning/SelectFieldsSet.csv")
+
+x = df['Industry']
+y = df['YearsWorkExperience']
+
+col = np.where(df["ConvertedCompYearly"]>65000,'#00b579','b')
+fig, ax = plt.subplots()
+ax.scatter(x, y, c=col,alpha=0.5)
+
+import textwrap
+def wrap_labels(ax, width, break_long_words=False):
+    labels = []
+    for label in ax.get_xticklabels():
+        text = label.get_text()
+        labels.append(textwrap.fill(text, width=width,
+                      break_long_words=break_long_words))
+    ax.set_xticklabels(labels, rotation=90)
+
+wrap_labels(ax, 10)
+plt.xticks(rotation=90)
+plt.xlabel("Industry")
+plt.ylabel("Years of Work Experience")
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set_theme(style='darkgrid', font_scale=0.7)
+
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+df = pd.read_csv("../../ModifiedData/DataCleaning/SelectFieldsSet.csv")
+
+df["IsHighIncome"] = df["ConvertedCompYearly"] > 65000
+print(df["IsHighIncome"].value_counts())
+print(df["ConvertedCompYearly"].median())
+
+ax = df["IsHighIncome"].value_counts().plot(kind="bar", title="High-Income Developers", xlabel="Has Over 65,000 in Annual Compensation")
+ax.bar_label(ax.containers[0], label_type="edge")
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+reducedDF = pd.read_csv("../../ModifiedData/DataCleaning/SelectFieldsSet.csv")
+transformedData = reducedDF[["Employment"]].copy()
+
+# Split Employment into separate columns, merge not working roles
+employmentCols = transformedData["Employment"].str.get_dummies(sep=";")
+employmentCols["Not employed"] = (employmentCols["Not employed, and not looking for work"] +
+                                  employmentCols["Not employed, but looking for work"] +
+                                  employmentCols["Retired"])
+employmentCols = employmentCols.drop(columns=["Not employed, and not looking for work", "Not employed, but looking for work", "Retired"])
+employmentCols[employmentCols["Not employed"] > 1] = 1
+
+transformedData = transformedData.drop(columns=["Employment"])
+transformedData = pd.concat([transformedData, employmentCols], axis=1)
+
+
+# Embedded Systems
+
+
+# Merge with OrdinalData
+ordinalData = pd.read_csv("../../ModifiedData/TransformedData/OrdinalData.csv")
+transformedData = pd.concat([ordinalData, transformedData], axis=1)
+transformedData.to_csv("CleanedData.csv", index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+from category_encoders import CountEncoder
+
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+reducedDF = pd.read_csv("../../ModifiedData/DataCleaning/SelectFieldsSet.csv")
+frequencyEncodedData = reducedDF[["DevType", "Country", "Industry"]].copy()
+
+# Encoding Dev Type
+encoderDev = CountEncoder()
+frequencyEncodedData["DevType"] = encoderDev.fit_transform(frequencyEncodedData["DevType"])
+print(frequencyEncodedData["DevType"])
+
+# Encoding Industry
+encoderDev = CountEncoder()
+frequencyEncodedData["Industry"] = encoderDev.fit_transform(frequencyEncodedData["Industry"])
+print(frequencyEncodedData["Industry"])
+
+# Encoding Country
+encoderDev = CountEncoder()
+frequencyEncodedData["Country"] = encoderDev.fit_transform(frequencyEncodedData["Country"])
+print(frequencyEncodedData["Country"])
+
+# Merge cleanedData, labels
+cleanedData = pd.read_csv("../../ModifiedData/TransformedData/CleanedData.csv")
+cleanedData = pd.concat([cleanedData, frequencyEncodedData], axis=1)
+
+cleanedData.to_csv("CleanedDataWithFrequency.csv", index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+reducedDF = pd.read_csv("../../ModifiedData/DataCleaning/SelectFieldsSet.csv")
+labelEncodedData = reducedDF[["DevType", "Country", "Industry"]].copy()
+
+# Encoding Dev Type
+encoderDev = LabelEncoder()
+labelEncodedData["DevType"] = encoderDev.fit_transform(labelEncodedData["DevType"])
+print(encoderDev.classes_)
+
+
+# Encoding Industry
+encoderInd = LabelEncoder()
+labelEncodedData["Industry"] = encoderInd.fit_transform(labelEncodedData["Industry"])
+print(encoderInd.classes_)
+
+
+# Encoding Country
+encoderCou = LabelEncoder()
+labelEncodedData["Country"] = encoderCou.fit_transform(labelEncodedData["Country"])
+print(encoderCou.classes_)
+
+
+# Merge cleanedData, labels
+cleanedData = pd.read_csv("../../ModifiedData/TransformedData/CleanedData.csv")
+cleanedData = pd.concat([cleanedData, labelEncodedData], axis=1)
+
+cleanedData.to_csv("CleanedDataWithLabels.csv", index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+from sklearn.preprocessing import OrdinalEncoder
+
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+reducedDF = pd.read_csv("../../ModifiedData/DataCleaning/SelectFieldsSet.csv")
+transformedData = reducedDF.copy()
+
+# Convert Annual Comp to Above/Below Median
+transformedData["HighIncomeDev"] = transformedData["ConvertedCompYearly"] > 65000
+transformedData = transformedData.drop(columns=["ConvertedCompYearly"])
+
+# Years Coding, remove "Less than 1 Year" values
+transformedData["YearsCode"] = transformedData["YearsCode"].replace(to_replace="Less than 1 year", value=0)
+transformedData["YearsCode"] = transformedData["YearsCode"].replace(to_replace="More than 50 years", value=50)
+transformedData["YearsCodePro"] = transformedData["YearsCodePro"].replace(to_replace="Less than 1 year", value=0)
+transformedData["YearsCodePro"] = transformedData["YearsCodePro"].replace(to_replace="More than 50 years", value=50)
+
+# AGE
+ages = reducedDF["Age"].value_counts().keys()
+print(ages, reducedDF["Age"].value_counts())
+
+ageDict = {'Under 18 years old': 17,
+           '18-24 years old': 21,
+           '25-34 years old': 29,
+           '35-44 years old': 39,
+           '45-54 years old': 49,
+           '55-64 years old': 59,
+           '65 years or older': 65,
+           'Prefer not to say': 29} # only 9 respondents, use modal value
+
+# alternatively ordinal encode?
+# encodeAge = OrdinalEncoder()
+# transformedData["AgeOrdinals"] = encodeAge.fit_transform(transformedData[["Age"]])
+
+# Apply numerical dict to data
+transformedData["AgeOrdinals"] = reducedDF["Age"].replace(ageDict)
+print(transformedData[["Age", "AgeOrdinals"]])
+print(ageDict)
+
+# Remote
+remoteGroups = transformedData["RemoteWork"].value_counts().keys().sort_values()
+remoteGroups = remoteGroups.reindex([remoteGroups[i] for i in [1,0,2]])
+print(remoteGroups[0].to_list())
+
+remoteDict = {}
+for i, group in enumerate(remoteGroups[0].to_list()):
+    remoteDict[group] = i
+
+# Apply numerical dict to data
+transformedData["RemoteOrdinals"] = transformedData["RemoteWork"].replace(remoteDict)
+print(transformedData[["RemoteWork", "RemoteOrdinals"]])
+print(remoteDict)
+
+
+# Education Level
+educationLevels = transformedData["EdLevel"].value_counts().keys()
+educationLevels = educationLevels.reindex([educationLevels[i] for i in [4, 1, 0, 5, 2, 6, 3, 7]])
+
+educationDict = {}
+for i, group in enumerate(reversed(educationLevels[0].to_list())):
+    educationDict[group] = i
+
+transformedData["EdLevelOrdinals"] = transformedData["EdLevel"].replace(educationDict)
+print(transformedData[["EdLevel", "EdLevelOrdinals"]])
+print(educationDict)
+
+
+# Organisation Size
+orgs = transformedData["OrgSize"].value_counts().keys()
+print(orgs, transformedData["OrgSize"].value_counts())
+
+orgDict = {'Just me - I am a freelancer, sole proprietor, etc.': 1,
+           '2 to 9 employees': 5.5,
+           '10 to 19 employees': 14.5,
+           'I don’t know': 20,
+           '20 to 99 employees': 59.5,
+           '100 to 499 employees': 299.5,
+           '500 to 999 employees': 749.5,
+           '1,000 to 4,999 employees': 2999.5,
+           '5,000 to 9,999 employees': 7499.5,
+           '10,000 or more employees': 10000}
+
+# alternatively ordinal encode? performs worse in clustering
+# encodeOrgSize = OrdinalEncoder()
+# transformedData["OrgSizeOrdinals"] = encodeOrgSize.fit_transform(transformedData[["OrgSize"]])
+
+# Purchase Influence
+influenceDict = {'I have a great deal of influence' : 2,
+                 'I have some influence' : 1,
+                 'I have little or no influence' : 0}
+transformedData["PurchaseInfluence"] = transformedData["PurchaseInfluence"].replace(influenceDict)
+
+
+# Apply ordinal dict to data
+transformedData["OrgSizeOrdinals"] = transformedData["OrgSize"].replace(orgDict)
+print(transformedData[["OrgSize", "OrgSizeOrdinals"]])
+print(orgDict)
+
+# Drop non ordinal originals
+transformedData = transformedData[["HighIncomeDev", "AgeOrdinals", "OrgSizeOrdinals", "EdLevelOrdinals", "RemoteOrdinals", "YearsCodePro", "PurchaseInfluence"]]
+
+# Store Dataframe
+transformedData.to_csv("OrdinalData.csv", index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+from matplotlib import pyplot as plt
+from matplotlib import lines
+
+from sklearn.cluster import KMeans
+from sklearn import preprocessing
+from yellowbrick.cluster import KElbowVisualizer, SilhouetteVisualizer
+
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+df = pd.read_csv("../../ModifiedData/TransformedData/CleanedDataWithFrequency.csv")
+sampleColumns = ["YearsCodePro", "EdLevelOrdinals", "OrgSizeOrdinals", "AgeOrdinals"]
+
+# Fetch and split data into Above and Below median groups
+ordinalData = df[["HighIncomeDev", *sampleColumns]].copy()
+belowMedianData = ordinalData.loc[df["HighIncomeDev"] == 0.0][sampleColumns]
+aboveMedianData = ordinalData.loc[df["HighIncomeDev"] == 1.0][sampleColumns]
+
+
+# Produce Elbow Visualisations of both AM/BM groups
+def scale(dataList : []):
+    scaledDataList = []
+    scalers = []
+
+    for data in dataList:
+        scaler = preprocessing.MinMaxScaler()
+        scaler.fit(data)
+        scalers.append(scaler)
+        scaledData = scaler.transform(data)
+        scaledDataList.append(pd.DataFrame(scaledData, columns=sampleColumns))
+
+    return [*scaledDataList, scalers]
+
+
+belowMedianData, aboveMedianData, scalers = scale([belowMedianData, aboveMedianData])
+
+# Elbow Visualisation to determine K clusters
+visualiser = KElbowVisualizer(KMeans(), k=(2,10), timings=False)
+visualiser.fit(aboveMedianData)
+line = plt.gca().get_lines()[:2]
+line[0].set_color('c')
+line[0].set_label('Above-Median Data')
+line[1].set_color('c')
+visualiser = KElbowVisualizer(KMeans(), k=(2,10), timings=False)
+visualiser.fit(belowMedianData)
+line = plt.gca().get_lines()[2:4]
+line[0].set_color('b')
+line[0].set_label('Below-Median Data')
+line[1].set_color('b')
+plt.legend(plt.gca().get_lines(), ['Cyan', 'Blue'], loc='lower right')
+visualiser.show()
+
+
+# Could directly use values from visualiser.elbow_score_, but those may change
+# Hardcode with selected results for better graph consistency
+clusters = [4, 5]
+titles = ["Clustering for Below-Median Data", "Clustering for Above-Median Data"]
+titlesCentre = ["Cluster Centre values for Below-Median Data", "Cluster Centre values for Above-Median Data"]
+
+clusterCentresDF = pd.DataFrame(columns=sampleColumns)
+
+for i, data in enumerate([belowMedianData, aboveMedianData]):
+
+    # Create KMeans Model, fit and produce cluster groups for data
+    # km = KMeans(n_clusters=k, init='random', n_init=10, max_iter=300,tol=1e-04, random_state=0)
+    km = KMeans(n_clusters=clusters[i], init="k-means++", n_init=10)
+    y = km.fit_predict(data)
+    data['ClusterLabel'] = y
+
+    # Cluster Characteristics
+    clusterCentres = km.cluster_centers_
+    df_centre = pd.DataFrame(clusterCentres, columns=sampleColumns)
+    unscaledCentres = scalers[i].inverse_transform(df_centre)
+    print("ClusterCentres\n", pd.DataFrame(unscaledCentres, columns=sampleColumns))
+
+    # Plot cluster centre points
+    plt.scatter(data=df_centre, x="YearsCodePro", y="EdLevelOrdinals", marker='D', c=df_centre.index, cmap="Set1", vmin=df_centre.index.min(), vmax=df_centre.index.max())
+    for c, label in enumerate(df_centre.index):
+        plt.annotate(label, (df_centre["YearsCodePro"][c]-0.01, df_centre["EdLevelOrdinals"][c]-0.01))
+
+    # Plot Cluster Data for select cluster(s)
+    clusterData = data.loc[data["ClusterLabel"].isin([0, 1])]
+    plt.scatter(data=clusterData, x="YearsCodePro", y="EdLevelOrdinals", c="ClusterLabel", cmap="Set1", vmin=df_centre.index.min(), vmax=df_centre.index.max(), alpha=0.5)
+    plt.xlabel("Years Coding Professionally (0 to 50 in rescaled values)")
+    plt.ylabel("Education Level (in scaled ordinal values)")
+    plt.title(titles[i])
+
+    # produce legend
+    legendClusterCentre = lines.Line2D([], [], marker='D', color='k', linestyle='None', label="Cluster Centre")
+    legendClusterData = lines.Line2D([], [], marker='o', color='k', linestyle='None', label="Cluster Data")
+    plt.legend(handles=[legendClusterCentre, legendClusterData])
+    plt.show()
+
+    # Plot Cluster Characteristics
+    df_centre.plot.bar()
+    plt.xlabel("Cluster Group")
+    plt.ylabel("Scaled Data Values for Cluster Centre")
+    plt.title(titlesCentre[i])
+    plt.show()
+
+    # Plot Cluster Silhouettes
+    visualiser = SilhouetteVisualizer(KMeans(n_clusters=clusters[i], init="k-means++", n_init=10))
+    visualiser.fit(data)
+    visualiser.show()
+    print(visualiser.silhouette_score_)
+
+
+    if i > 0:
+        df_centre.index += clusters[i-1]
+    clusterCentresDF = pd.concat([clusterCentresDF, df_centre], axis=0)
+
+aboveMedianData["ClusterLabel"] += clusters[0]
+aboveMedianData["HighIncomeDev"] = True
+belowMedianData["HighIncomeDev"] = False
+compiledDF = pd.concat([belowMedianData, aboveMedianData], axis=0, ignore_index=True)
+print(compiledDF)
+
+clusterCentresDF.columns = ["ClCentre_" + col for col in clusterCentresDF.columns]
+print(clusterCentresDF)
+
+compiledDF = pd.merge(left=compiledDF, right=clusterCentresDF, right_index=True, left_on="ClusterLabel")
+compiledDF.to_csv("../../ModifiedData/ModelData/NumericalClustered.csv")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
+from scipy.stats import norm
+from sklearn.preprocessing import OrdinalEncoder
+
+# ORDINAL DATA
+# EdLevel, Age, Remote, ConvertedCompYearly, YearsCode, YearsCodePro, DevType, OrgSize
+
+pd.set_option('display.max_columns', 20)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+df = pd.read_csv("../../ModifiedData/TransformedData/ApplyingNominals.csv")
+
+# Encode DevType using Frequency
+freq = df["DevType"].value_counts(normalize=True)
+df["DevTypeEncoded"] = df["DevType"].map(freq)
+otherDevs = freq.loc[freq < 0.01].index.to_list()
+retainDevs = freq.loc[freq >= 0.01].index.to_list()
+devTypes = pd.get_dummies(df["DevType"])
+df = pd.concat([df, devTypes], axis=1)
+df["DevType_Other"] = df[otherDevs].sum()
+df["DevType_Other"] = df["DevType_Other"].fillna(0)
+df[df["DevType_Other"] > 1] = 1
+df = df.drop(columns=otherDevs)
+
+# Frequency Encode Work Operating System
+# operatingSystems = df["WorkOperatingSystem"].str.get_dummies(sep=';')
+# freq = operatingSystems.sum() / operatingSystems.count()
+# df["WorkOSEncoded"] = df["WorkOperatingSystem"].map(freq)
+
+operatingSystems = df["WorkOperatingSystem"].str.get_dummies(sep=';')
+# print(df["WorkOperatingSystem"].str.get_dummies(sep=';').sum())
+
+# Android, Arch, Debian, MacOS, OtherLinux, Ubuntu, Windows, WSL, iOS
+# Merge some columns
+
+operatingSystems["iOS"] = operatingSystems["iOS"] + operatingSystems["iPadOS"]
+operatingSystems[operatingSystems["iOS"] > 1] = 1
+
+operatingSystems["Other"] = (operatingSystems["AIX"] + operatingSystems["BSD"] + operatingSystems["ChromeOS"]
+                            + operatingSystems["Cygwin"] + operatingSystems["Haiku"] + operatingSystems["Solaris"]
+                             + operatingSystems["Other Linux-based"] + operatingSystems["Other (please specify):"])
+operatingSystems[operatingSystems["Other"] > 1] = 1
+
+operatingSystems["OtherLinux"] = operatingSystems["Arch"] + operatingSystems["Debian"] + operatingSystems["Red Hat"] + operatingSystems["Fedora"]
+operatingSystems[operatingSystems["OtherLinux"] > 1] = 1
+
+operatingSystems["WSL"] = operatingSystems["Windows Subsystem for Linux (WSL)"]
+
+operatingSystems = operatingSystems[["Windows", "Android", "MacOS", "WSL", "OtherLinux", "Other"]]
+
+# finalise data subset
+numericalData = df[["HighIncomeDev", "AgeOrdinals", "EdLevelOrdinals", "OrgSizeOrdinals",
+                    "RemoteOrdinals", "YearsCodePro", *retainDevs, "DevType_Other"]]
+numericalData = pd.concat([numericalData, operatingSystems], axis=1)
+
+numericalData.to_csv("../../ModifiedData/ModelData/NumericalData.csv", index=False)
+
+# numericalData = pd.read_csv("../../ModifiedData/ModelData/NumericalData.csv")
+# print(numericalData)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+from matplotlib import pyplot as plt
+from scipy.stats import norm
+from sklearn.preprocessing import OrdinalEncoder, LabelEncoder
+
+
+# ORDINAL DATA
+# EdLevel, Age, Remote, ConvertedCompYearly, YearsCode, YearsCodePro, DevType, OrgSize
+
+pd.set_option('display.max_columns', 20)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+df = pd.read_csv("../../ModifiedData/TransformedData/ApplyingNominals.csv")
+
+# Encode DevType
+le = LabelEncoder()
+df["DevType"] = le.fit_transform(df["DevType"])
+
+# Encode Operating Systems
+operatingSystems = df["WorkOperatingSystem"].str.get_dummies(sep=';')
+operatingSystems["iOS"] = operatingSystems["iOS"] + operatingSystems["iPadOS"]
+operatingSystems[operatingSystems["iOS"] > 1] = 1
+
+operatingSystems["Other"] = (operatingSystems["AIX"] + operatingSystems["BSD"] + operatingSystems["ChromeOS"]
+                             + operatingSystems["Cygwin"] + operatingSystems["Haiku"] + operatingSystems["Solaris"]
+                             + operatingSystems["Other Linux-based"] + operatingSystems["Other (please specify):"])
+operatingSystems[operatingSystems["Other"] > 1] = 1
+
+operatingSystems["OtherLinux"] = operatingSystems["Arch"] + operatingSystems["Debian"] + operatingSystems["Red Hat"] + operatingSystems["Fedora"]
+operatingSystems[operatingSystems["OtherLinux"] > 1] = 1
+
+operatingSystems["WSL"] = operatingSystems["Windows Subsystem for Linux (WSL)"]
+operatingSystems = operatingSystems[["Windows", "Android", "MacOS", "WSL", "OtherLinux", "Other"]]
+
+# Finalise data subset and store
+df = df[["HighIncomeDev", "AgeOrdinals", "EdLevelOrdinals", "OrgSizeOrdinals", "RemoteOrdinals", "YearsCodePro", "DevType"]]
+df = pd.concat([df, operatingSystems], axis=1)
+
+df.to_csv("../../ModifiedData/ModelData/NumericalDataTree.csv", index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn import preprocessing
+import sklearn.model_selection as skms
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score
+
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+# Obtain predictor and target data
+data = pd.read_csv("../../ModifiedData/TransformedData/CleanedDataWithFrequency.csv")
+target = "HighIncomeDev"
+columns = data.columns.drop(target)
+# columns = ["AgeOrdinals", "EdLevelOrdinals", "YearsCodePro", "OrgSizeOrdinals", "Country", "DevType", "Industry"]
+
+predictorData = data[columns]
+targetData = data[target]
+
+# Split into train and test data
+predictorTrain, predictorTest, targetTrain, targetTest = (
+    skms.train_test_split(predictorData, targetData, test_size=0.2, random_state=7))
+
+# Scale data to avoid weighting
+# This model actually works best without scaling?
+scaler = preprocessing.MinMaxScaler()
+scaler.fit(predictorTrain)
+predictorTrain = scaler.transform(predictorTrain)
+predictorTest = scaler.transform(predictorTest)
+
+
+# Create baseline model
+baselineKNC = KNeighborsClassifier(n_neighbors=5, weights="uniform", metric="manhattan")
+baselineKNC.fit(predictorTrain, targetTrain)
+
+# Attempt to find best hyperparameters
+params = {
+    'n_neighbors' : range(5, 100),
+    'weights' : ['uniform', 'distance'],
+    'metric' : ['manhattan', 'euclidean'],
+    'algorithm': ['ball_tree', 'kd_tree', 'brute'],
+    'leaf_size': range(10, 51, 3),
+    'p': [1, 2]
+}
+
+searchHyperParams = skms.RandomizedSearchCV(
+    KNeighborsClassifier(),
+    params,
+    n_iter=60,
+    cv=30,
+    n_jobs=1,
+    verbose=4
+)
+
+# use best params to create new model
+# searchHyperParams.fit(predictorTrain, targetTrain)
+# bestParams = searchHyperParams.best_params_
+# bestAcc = searchHyperParams.best_score_
+# print(bestAcc, bestParams)
+
+# results
+# Accuracy 0.7493423396175688, originally 91 k
+bestParams = {'weights': 'distance', 'p': 1, 'n_neighbors': 143, 'metric': 'manhattan', 'leaf_size': 46, 'algorithm': 'kd_tree'}
+k = bestParams['n_neighbors']
+
+# Test Uniform and Distance weighting
+testResults = {}
+testResultsDistance = {}
+highestAccUni = {'k':0, 'v':0}
+highestAccDist = {'k':0, 'v':0}
+for newK in range(k-10, k+10, 1):
+    print(newK)
+    knnModel = KNeighborsClassifier(weights='uniform', p=1, n_neighbors=newK, metric='manhattan', leaf_size=46, algorithm='kd_tree')
+    knnModel.fit(predictorTrain, targetTrain)
+
+    targetPredict = knnModel.predict(predictorTest)
+    testResults[newK] = accuracy_score(targetTest, targetPredict)
+    if highestAccUni['v'] < testResults[newK]:
+        highestAccUni['k'] = newK
+        highestAccUni['v'] = testResults[newK]
+
+    # Model using Weighted Distance
+    knnModel = KNeighborsClassifier(weights='distance', p=1, n_neighbors=newK, metric='manhattan', leaf_size=46, algorithm='kd_tree')
+    knnModel.fit(predictorTrain, targetTrain)
+
+    targetPredict = knnModel.predict(predictorTest)
+    testResultsDistance[newK] = accuracy_score(targetTest, targetPredict)
+    if highestAccDist['v'] < testResultsDistance[newK]:
+        highestAccDist['k'] = newK
+        highestAccDist['v'] = testResultsDistance[newK]
+
+
+print(f"uniform best is acc {highestAccUni['v']}, with k {highestAccUni['k']}")
+print(f"distance best is acc {highestAccDist['v']}, with k {highestAccDist['k']}")
+plt.plot(list(testResults.keys()), list(testResults.values()), c='b', label="Uniform Weighting")
+plt.plot(list(testResultsDistance.keys()), list(testResultsDistance.values()), c='c', label="Distance Weighting")
+plt.title("Accuracy of Uniform and Distance Weighting")
+plt.xlabel("K Neighbors")
+plt.ylabel("Accuracy")
+plt.legend()
+plt.show()
+
+# Test alternative algorithms
+highestAcc = {'k':0, 'v':0, 'a':''}
+for algo in ['brute', 'kd_tree', 'ball_tree']:
+    highestAlgoAcc = {'k':0, 'v':0}
+    for newK in range(k-20, k+20):
+        # Model using Uniform Weight
+        knnModel = KNeighborsClassifier(weights='distance', p=1, n_neighbors=newK, metric='manhattan', leaf_size=46, algorithm=algo)
+        knnModel = knnModel.fit(predictorTrain, targetTrain)
+
+        targetPredict = knnModel.predict(predictorTest)
+        testResults[newK] = accuracy_score(targetTest, targetPredict)
+        if highestAlgoAcc['v'] < testResults[newK]:
+            highestAlgoAcc['k'] = newK
+            highestAlgoAcc['v'] = testResults[newK]
+
+        # Model using Weighted Distance
+        # knnModel = KNeighborsClassifier(weights='uniform', p=1, n_neighbors=newK, metric='manhattan', leaf_size=43, algorithm='auto')
+        # knnModel.fit(predictorTrain, targetTrain)
+        #
+        # targetPredict = knnModel.predict(predictorTest)
+        # testResultsDistance[newK] = accuracy_score(targetTest, targetPredict)
+    plt.plot(list(testResults.keys()), list(testResults.values()), label=algo)
+    print(f"best of {algo} is acc {highestAlgoAcc['v']}, with k {highestAlgoAcc['k']}")
+    if highestAcc['v'] < highestAlgoAcc['v']:
+        highestAcc['k'] = highestAlgoAcc['k']
+        highestAcc['v'] = highestAlgoAcc['v']
+        highestAcc['a'] = algo
+
+
+print(f"best is acc {highestAcc['v']}, with k {highestAcc['k']}, algo {highestAcc['a']}")
+plt.title("Accuracy of alternative KNN Algorithms")
+plt.xlabel("n_neighbors hyperparameter")
+plt.ylabel("Accuracy")
+plt.legend()
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import sklearn.model_selection as skms
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, roc_curve, auc
+
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+data = pd.read_csv("../../ModifiedData/TransformedData/CleanedDataWithFrequency.csv")
+
+# split data
+target = "HighIncomeDev"
+columns = data.columns.drop(target)
+# columns = ["AgeOrdinals", "EdLevelOrdinals", "YearsCodePro", "OrgSizeOrdinals", "RemoteOrdinals"]
+predictorData = data[columns]
+targetData = data[target]
+
+# Split into train and test data
+predictorTrain, predictorTest, targetTrain, targetTest = (
+    skms.train_test_split(predictorData, targetData, test_size=0.2, random_state=7))
+
+# Scale data to avoid weighting
+# scaler = preprocessing.MinMaxScaler()
+# scaler.fit(predictorTrain)
+# predictorTrain = scaler.transform(predictorTrain)
+# predictorTest = scaler.transform(predictorTest)
+
+params = {
+    'min_samples_split': range(5, 30),
+    'min_samples_leaf': range(5, 30),
+    'max_depth' : range(1, 30, 1),
+    'criterion':['gini', 'entropy', 'log_loss']
+}
+
+searchHyperParams = skms.RandomizedSearchCV(
+    DecisionTreeClassifier(random_state=42),
+    params,
+    n_iter=60,
+    cv=5,
+    random_state=42
+)
+# searchHyperParams.fit(predictorTrain, targetTrain)
+# bestParams = searchHyperParams.best_params_
+# bestAcc = searchHyperParams.best_score_
+# print(bestAcc, bestParams)
+# 0.8040811690996158 {'min_samples_split': 25, 'min_samples_leaf': 11, 'max_depth': 26, 'criterion': 'gini'}
+bestValues = {'min_samples_split': 25, 'min_samples_leaf': 11, 'max_depth': 26, 'criterion': 'gini'}
+
+bestAcc = {'c':'', 'md':0, 'a':0}
+for criterion in ['gini', 'entropy', 'log_loss']:
+    accuracies = {}
+    for md in range(1, 30):
+        clf = DecisionTreeClassifier(min_samples_split=25, min_samples_leaf=11, max_depth=md, criterion=criterion, splitter='best', random_state=32)
+        clf = clf.fit(predictorTrain, targetTrain)
+
+        predictTargets = clf.predict(predictorTest)
+        accuracies[md] = accuracy_score(targetTest, predictTargets)
+        if accuracies[md] > bestAcc['a']:
+            bestAcc['md'] = md
+            bestAcc['a'] = accuracies[md]
+            bestAcc['c'] = criterion
+
+    plt.plot(list(accuracies.keys()), list(accuracies.values()), label=criterion)
+    maxAcc = max(accuracies.values())
+    print("max accuracy: ", maxAcc, "with depth: ", list(accuracies.keys())[list(accuracies.values()).index(maxAcc)],
+          "with criterion: ", criterion)
+
+print(bestAcc)
+
+plt.title("Accuracy of alternative split Criterions")
+plt.xlabel("Max depth")
+plt.ylabel("Accuracy")
+plt.legend()
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn import preprocessing
+import sklearn.model_selection as skms
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+data = pd.read_csv("../../ModifiedData/TransformedData/CleanedDataWithLabels.csv")
+
+# split data
+target = "HighIncomeDev"
+columns = data.columns.drop(target)
+# columns = ["AgeOrdinals", "EdLevelOrdinals", "YearsCodePro", "OrgSizeOrdinals", "RemoteOrdinals"]
+predictorData = data[columns]
+targetData = data[target]
+
+# Split into train and test data
+predictorTrain, predictorTest, targetTrain, targetTest = (
+    skms.train_test_split(predictorData, targetData, test_size=0.2, random_state=7))
+
+# Scale data to avoid weighting
+scaler = preprocessing.MinMaxScaler()
+scaler.fit(predictorTrain)
+predictorTrain = scaler.transform(predictorTrain)
+predictorTest = scaler.transform(predictorTest)
+
+# Determine best parameters
+params = {
+    'n_estimators': range(100, 200, 10),
+    'max_features': ['sqrt', 'log2'],
+    'max_depth' : range(1, 20),
+    'min_samples_split':range(2, 30),
+    'min_samples_leaf':range(1,30),
+    'bootstrap':[True]
+}
+
+searchHyperParams = skms.RandomizedSearchCV(
+    RandomForestClassifier(random_state=42),
+    params,
+    n_iter=60,
+    cv=5,
+    random_state=42,
+    verbose=4
+)
+# searchHyperParams.fit(predictorTrain, targetTrain)
+# bestParams = searchHyperParams.best_params_
+# bestAcc = searchHyperParams.best_score_
+# print(bestAcc, bestParams)
+
+# Results
+# 0.7863644177076061 {'n_estimators': 110, 'min_samples_split': 8, 'min_samples_leaf': 1, 'max_features': 'sqrt', 'max_depth': 17, 'bootstrap': True}
+# max accuracy:  0.7942829220620572 with depth:  84 with max features:  sqrt
+# max accuracy:  0.79599315905204 with depth:  114 with max features:  log2
+# max accuracy:  0.8299535792817004 with depth:  112 with max features:  None
+
+# Tune maxFeatures, n_estimators parameter
+accuracies = {}
+colours = ['r', 'c', 'g']
+for i, maxFeatures in enumerate(['sqrt', 'log2', None]):
+    for estimators in range(70, 150):
+        rf = RandomForestClassifier(n_estimators=estimators, min_samples_split=8, min_samples_leaf=1, max_features=maxFeatures, max_depth=17, bootstrap=True)
+        rf.fit(predictorTrain, targetTrain)
+
+        predictTest = rf.predict(predictorTest)
+        accuracies[estimators] = accuracy_score(targetTest, predictTest)
+
+    plt.plot(list(accuracies.keys()), list(accuracies.values()), c=colours[i], label=(maxFeatures if maxFeatures is not None else "No Limit"))
+    maxAcc = max(accuracies.values())
+    print("max accuracy: ", maxAcc, "with depth: ", list(accuracies.keys())[list(accuracies.values()).index(maxAcc)],
+          "with max features: ", maxFeatures)
+
+plt.plot(list(accuracies.keys()), list(accuracies.values()))
+plt.title("Accuracy of varying tree max depths")
+plt.xlabel("Num Trees in Forest")
+plt.ylabel("Accuracy")
+plt.legend()
+plt.show()
+
+# Tune criterion, depth parameter
+accuracies = {}
+for algo in ['log_loss']:
+    for depth in range(127, 135):
+        rf = RandomForestClassifier(n_estimators=112, min_samples_split=8, min_samples_leaf=1, max_features=None,
+                                    max_depth=depth, bootstrap=True, criterion=algo)
+        rf.fit(predictorTrain, targetTrain)
+
+        predictTest = rf.predict(predictorTest)
+        accuracies[depth] = accuracy_score(targetTest, predictTest)
+
+    plt.plot(list(accuracies.keys()), list(accuracies.values()), label=algo)
+    maxAcc = max(accuracies.values())
+    print("max accuracy: ", maxAcc, "with depth: ", list(accuracies.keys())[list(accuracies.values()).index(maxAcc)],
+          "with criterion: ", algo)
+
+# max accuracy:  0.8287319814317127 with depth:  123 with criterion:  gini
+# max accuracy:  0.8294649401417054 with depth:  97 with criterion:  entropy
+# max accuracy:  0.8314194967016858 with depth:  129 with criterion:  log_loss
+
+plt.plot(list(accuracies.keys()), list(accuracies.values()))
+plt.title("Accuracy of varying tree max depths")
+plt.xlabel("Tree Max Depth")
+plt.ylabel("Accuracy")
+plt.legend()
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from sklearn import preprocessing
+import sklearn.model_selection as skms
+from sklearn.ensemble import GradientBoostingClassifier, HistGradientBoostingClassifier
+from sklearn.metrics import accuracy_score
+
+pd.set_option('display.max_columns', 10)
+pd.set_option('display.width', 220)
+pd.set_option('display.max_colwidth', 30)
+
+data = pd.read_csv("../../ModifiedData/TransformedData/CleanedDataWithFrequency.csv")
+
+# split data
+target = "HighIncomeDev"
+columns = data.columns.drop(target)
+# columns = ["AgeOrdinals", "EdLevelOrdinals", "YearsCodePro", "OrgSizeOrdinals", "RemoteOrdinals"]
+predictorData = data[columns]
+targetData = data[target]
+
+# Split into train and test data
+predictorTrain, predictorTest, targetTrain, targetTest = (
+    skms.train_test_split(predictorData, targetData, test_size=0.2, random_state=7))
+
+# Scale data to avoid weighting
+# scaler = preprocessing.MinMaxScaler()
+# scaler.fit(predictorTrain)
+# predictorTrain = scaler.transform(predictorTrain)
+# predictorTest = scaler.transform(predictorTest)
+
+params = {
+    'n_estimators': range(50, 401, 50),
+    'learning_rate': [0.01, 0.05, 0.1, 0.2],
+    'max_depth': [3, 5, 7],
+    'min_samples_split': [2, 5, 10],
+    'subsample': [0.8, 1.0],
+}
+
+searchHyperParams = skms.RandomizedSearchCV(
+    GradientBoostingClassifier(),
+    params,
+    n_iter=50,
+    cv=5,
+    n_jobs=-1,
+    verbose=4
+)
+# searchHyperParams.fit(predictorTrain, targetTrain)
+# bestParams = searchHyperParams.best_params_
+# bestAcc = searchHyperParams.best_score_
+# print(bestAcc, bestParams)
+
+# results
+# 0.836337326874834
+bestParams = {'subsample': 0.8, 'n_estimators': 400, 'min_samples_split': 10, 'max_depth': 3, 'learning_rate': 0.1}
+
+# gb = GradientBoostingClassifier(subsample=0.8, n_estimators=400, min_samples_split=10, max_depth=3, learning_rate=0.1)
+# gb.fit(predictorTrain, targetTrain)
+#
+# predictTest = gb.predict(predictorTest)
+# print(accuracy_score(targetTest, predictTest))
+
+# Determine suitable number of iterations
+hgb = HistGradientBoostingClassifier(max_iter=1000, learning_rate=0.1, random_state=42, early_stopping=True)
+hgb.fit(predictorTrain, targetTrain)
+
+predictTest = hgb.predict(predictorTest)
+print(accuracy_score(targetTest, predictTest))
+print(hgb.n_iter_)
+plt.plot(-hgb.validation_score_)
+plt.xlabel("Number of Iterations")
+plt.ylabel("Root Mean Squared Error")
+plt.show()
+
+# Compare alternative max depths
+accuracies = {}
+for depth in range(1, 25):
+    hgb = HistGradientBoostingClassifier(max_iter=1000, max_depth=depth, learning_rate=0.1, random_state=42, early_stopping=True)
+    hgb.fit(predictorTrain, targetTrain)
+
+    predictTest = hgb.predict(predictorTest)
+    accuracies[depth] = accuracy_score(targetTest, predictTest)
+    print(f"accuracy {accuracies[depth]} at depth {depth}")
+
+plt.plot(list(accuracies.keys()), list(accuracies.values()))
+plt.ylabel("Accuracy")
+plt.xlabel("Max Depth")
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+from sklearn import preprocessing
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier, HistGradientBoostingClassifier, \
+    VotingClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+
+data = pd.read_csv("../../ModifiedData/TransformedData/CleanedDataWithFrequency.csv")
+
+# split data
+target = "HighIncomeDev"
+columns = data.columns.drop(target)
+# columns = ["AgeOrdinals", "EdLevelOrdinals", "YearsCodePro", "OrgSizeOrdinals", "RemoteOrdinals"]
+predictorData = data[columns]
+targetData = data[target]
+
+# Split into train and test data
+predictorTrain, predictorTest, targetTrain, targetTest = (
+    train_test_split(predictorData, targetData, test_size=0.2, random_state=7))
+
+# Scale data to avoid weighting
+scaler = preprocessing.MinMaxScaler()
+scaler.fit(predictorTrain)
+predictorTrain = scaler.transform(predictorTrain)
+predictorTest = scaler.transform(predictorTest)
+
+# Best Initial Models
+
+# Best Decision Tree Model
+dtModel = DecisionTreeClassifier(min_samples_split=25, min_samples_leaf=11, max_depth=19, criterion='gini')
+dtModel = dtModel.fit(predictorTrain, targetTrain)
+
+# Best KNN Model
+knnModel = KNeighborsClassifier(weights='distance', p=1, n_neighbors=143, metric='manhattan', leaf_size=46, algorithm='kd_tree')
+knnModel = knnModel.fit(predictorTrain, targetTrain)
+
+# Best Random Forest Model
+rfModel = RandomForestClassifier(n_estimators=112, min_samples_split=8, min_samples_leaf=1, max_features=None, max_depth=129, criterion='log_loss', bootstrap=True)
+rfModel.fit(predictorTrain, targetTrain)
+
+models = [dtModel, knnModel, rfModel]
+
+# Ensemble Models
+
+# Voting Classifier
+allModels = [("knn", knnModel), ("dt", dtModel), ("rf", rfModel)]
+vcModel = VotingClassifier(estimators=allModels, voting='soft')
+vcModel.fit(predictorTrain, targetTrain)
+
+# Best Histogram Gradient Boosting Model
+hgbModel = HistGradientBoostingClassifier(max_iter=1000, max_depth=8, learning_rate=0.1, random_state=42, early_stopping=True)
+hgbModel.fit(predictorTrain, targetTrain)
+
+ensembleModels = [vcModel, hgbModel]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import matplotlib.pyplot as plt
+from sklearn.model_selection import LearningCurveDisplay
+
+from FinalModels import *
+from sklearn.metrics import (precision_score, precision_recall_curve,
+                             confusion_matrix, ConfusionMatrixDisplay, recall_score, accuracy_score)
+
+
+# EVALUATE KNN
+
+predictedTest = knnModel.predict(predictorTest)
+
+print(precision_score(targetTest, predictedTest))
+
+predictedProbs = knnModel.predict_proba(predictorTest)[:,1]
+precision, recall, _ = precision_recall_curve(targetTest, predictedProbs)
+plt.fill_between(precision, recall)
+plt.ylabel("Precision")
+plt.xlabel("Recall")
+plt.show()
+
+# Learning curve model
+# scaler = preprocessing.MinMaxScaler()
+# scaler.fit(predictorData)
+# predictorData = scaler.transform(predictorData)
+#
+# LearningCurveDisplay.from_estimator(knnModel, predictorData, targetData)
+# plt.show()
+
+predictedTest = knnModel.predict(predictorTest)
+cm = confusion_matrix(targetTest, predictedTest)
+
+positiveAcc = recall_score(targetTest, predictedTest)
+negativeAcc = recall_score(targetTest, predictedTest, pos_label=0)
+print(positiveAcc, negativeAcc)
+
+cmD = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["BelowMedian", "AboveMedian"])
+cmD.plot()
+plt.yticks(rotation=90)
+plt.show()
+
+# EVALUATE DECISION TREE
+
+predictedTest = dtModel.predict(predictorTest)
+cm = confusion_matrix(targetTest, predictedTest)
+
+positiveAcc = recall_score(targetTest, predictedTest)
+negativeAcc = recall_score(targetTest, predictedTest, pos_label=0)
+print(positiveAcc, negativeAcc)
+
+cmD = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["BelowMedian", "AboveMedian"])
+cmD.plot()
+plt.yticks(rotation=90)
+plt.show()
+
+
+# EVALUATE FOREST
+
+predictedTest = rfModel.predict(predictorTest)
+cm = confusion_matrix(targetTest, predictedTest)
+
+positiveAcc = recall_score(targetTest, predictedTest)
+negativeAcc = recall_score(targetTest, predictedTest, pos_label=0)
+scoreAcc = accuracy_score(targetTest, predictedTest)
+print(scoreAcc, positiveAcc, negativeAcc)
+
+cmD = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["BelowMedian", "AboveMedian"])
+cmD.plot()
+plt.yticks(rotation=90)
+plt.show()
+
+
+# EVALUATE HISTOGRAM GRADIENT BOOSTING
+
+predictedTest = hgbModel.predict(predictorTest)
+cm = confusion_matrix(targetTest, predictedTest)
+
+positiveAcc = recall_score(targetTest, predictedTest)
+negativeAcc = recall_score(targetTest, predictedTest, pos_label=0)
+scoreAcc = accuracy_score(targetTest, predictedTest)
+print(scoreAcc, positiveAcc, negativeAcc)
+
+cmD = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["BelowMedian", "AboveMedian"])
+cmD.plot()
+plt.yticks(rotation=90)
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (confusion_matrix, ConfusionMatrixDisplay, recall_score, accuracy_score)
+
+from FinalModels import *
+from sklearn.ensemble import VotingClassifier, BaggingClassifier, StackingClassifier
+
+# Create new Voting Classifier from prior models
+allModels = [("knn", knnModel), ("dt", dtModel), ("rf", rfModel)]
+accuracies = {}
+
+vcModel = VotingClassifier(estimators=allModels)
+vcModel.fit(predictorTrain, targetTrain)
+
+predicted = vcModel.predict(predictorTest)
+accuracies["Original"] = accuracy_score(targetTest, predicted)
+
+# Determine affect of removing a particular model
+for model in allModels:
+    # Create ensemble from all models
+    estimators = allModels.copy()
+    estimators.remove(model)
+    vc = VotingClassifier(estimators=estimators)
+    vc.fit(predictorTrain, targetTrain)
+
+    predicted = vc.predict(predictorTest)
+
+    # models have difficulties predicting for high-income,
+
+    accuracies[model[0]] = accuracy_score(targetTest, predicted)
+    print(accuracies[model[0]])
+
+plt.bar(range(len(accuracies)), list(accuracies.values()))
+plt.xticks(range(len(accuracies)), list(accuracies.keys()))
+plt.xlabel("Influence of removing a model upon the final accuracy")
+plt.ylabel("Accuracy")
+plt.show()
+
+# Evaluate the 3-model Voting Classifier
+predictedTest = vcModel.predict(predictorTest)
+cm = confusion_matrix(targetTest, predictedTest)
+
+positiveAcc = recall_score(targetTest, predictedTest)
+negativeAcc = recall_score(targetTest, predictedTest, pos_label=0)
+print(positiveAcc, negativeAcc)
+
+cmD = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["BelowMedian", "AboveMedian"])
+cmD.plot()
+plt.yticks(rotation=90)
+plt.show()
+
+
+# Bagging Classifier
+sModel = StackingClassifier([("knn", knnModel), ("dt", dtModel), ("rf", rfModel)], LogisticRegression())
+sModel.fit(predictorTrain, targetTrain)
+
+predicted = sModel.predict(predictorTest)
+print(accuracy_score(targetTest, predicted))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+from matplotlib import pyplot as plt
+from sklearn.ensemble import VotingClassifier
+from sklearn.metrics import roc_curve, auc
+
+from FinalModels import models, ensembleModels, predictorTest, targetTest
+
+# Produce ROC curve for each model
+
+for model in models:
+    predictionScores = model.predict_proba(predictorTest)[:, 1]
+    falsePosRate, truePosRate, _ = roc_curve(targetTest, predictionScores)
+
+    # Area under curve
+    rocAuc = auc(falsePosRate, truePosRate)
+
+    # Model name
+    modelName = str(model).split(sep='(')[0]
+
+    # plot curve
+    plt.plot(falsePosRate, truePosRate, label=f"{modelName} auc: {rocAuc}")
+
+# plot random guessing as 50% line
+plt.plot([0, 1], [0, 1], 'k--')
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.legend()
+plt.show()
+
+
+# Second ROC Curve using ensemble models
+
+for model in [*models, *ensembleModels]:
+    predictionScores = model.predict_proba(predictorTest)[:, 1]
+    falsePosRate, truePosRate, _ = roc_curve(targetTest, predictionScores)
+
+    # Area under curve
+    rocAuc = auc(falsePosRate, truePosRate)
+
+    # Model name
+    modelName = str(model).split(sep='(')[0]
+
+    # plot curve
+    plt.plot(falsePosRate, truePosRate, label=f"{modelName} auc: {rocAuc}")
+
+# plot random guessing as 50% line
+plt.plot([0, 1], [0, 1], 'k--')
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.legend()
+plt.show()
